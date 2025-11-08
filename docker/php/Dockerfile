@@ -8,9 +8,8 @@ RUN apt-get update \
     && apt-get install -y \
             zlib1g-dev \
             libzip-dev \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql
-
-RUN docker-php-ext-install zip
+            libicu-dev \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip
 
 RUN pecl install apcu-5.1.22
 RUN docker-php-ext-enable apcu
