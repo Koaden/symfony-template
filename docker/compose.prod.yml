@@ -1,0 +1,56 @@
+services:
+    php:
+        build:
+            context: ..
+            dockerfile: docker/php/Dockerfile
+            target: prod
+            args:
+                APP_ENV: prod
+                DATABASE_URL: ${DATABASE_URL}
+                APP_SECRET: ${APP_SECRET}
+        command: >
+            sh -c "php bin/console doctrine:migrations:migrate --no-interaction --env=prod && php-fpm"
+        env_file:
+            - ../.env
+        restart: unless-stopped
+        volumes:
+            - php-public:/usr/src/app/public
+        depends_on:
+            db:
+                condition: service_healthy
+    nginx:
+        build:
+            context: ..
+            dockerfile: docker/nginx/Dockerfile
+            target: prod
+        volumes:
+            - php-public:/usr/src/app/public
+        ports:
+            - 80:80
+        restart: unless-stopped
+    db:
+        build:
+            context: ..
+            dockerfile: docker/mysql/Dockerfile
+        restart: unless-stopped
+        env_file:
+            - ../.env
+        volumes:
+            - db-data:/var/lib/mysql
+        healthcheck:
+            test: [ CMD, mysqladmin, ping, --silent ]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 30s
+        ports:
+            - 3307:3306
+        environment:
+            - MYSQL_RANDOM_ROOT_PASSWORD=yes
+            - MYSQL_DATABASE=${MYSQL_DATABASE}
+            - MYSQL_USER=${MYSQL_USER}
+            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+
+volumes:
+    db-data:
+    php-public:

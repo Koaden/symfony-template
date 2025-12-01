@@ -1,46 +1,55 @@
 FROM composer:2.4.2 AS composer
 
-##################################
-
-FROM php:8.3-fpm AS base-php
+FROM php:8.3-fpm AS base
 
 RUN apt-get update \
     && apt-get install -y \
-            zlib1g-dev \
-            libzip-dev \
-            libicu-dev \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip
-
-RUN pecl install apcu-5.1.22
-RUN docker-php-ext-enable apcu
+        zlib1g-dev \
+        libzip-dev \
+        libicu-dev \
+        git \
+        unzip \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql intl zip \
+    && pecl install apcu-5.1.22 \
+    && docker-php-ext-enable apcu \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 
 WORKDIR /usr/src/app
 
-ARG APP_FOLDER
+COPY apps/back/ /usr/src/app/
 
-RUN mkdir /.composer && chown 1000 /.composer
+RUN mkdir -p var/cache var/log \
+    && chmod -R a+w var
 
-COPY apps/back /usr/src/app
+FROM base AS dev
 
-RUN mkdir -p /usr/src/app/var/cache /usr/src/app/var/log
-RUN chmod -R a+w /usr/src/app/var/cache /usr/src/app/var/log
-
-COPY . /usr/src/app
+ENV APP_ENV=dev
 
 RUN chown -R 1000:1000 /usr/src/app
 USER 1000:1000
 
-##################################
+RUN composer install --no-scripts
 
-FROM base-php AS php
+ENV PATH="/usr/src/app/vendor/bin:/usr/src/app/bin:${PATH}"
 
-RUN composer install && composer clear-cache
-RUN composer dump-autoload --optimize --classmap-authoritative --no-dev
+CMD ["php-fpm"]
 
-RUN PATH=$PATH:/usr/src/apps/vendor/bin:bin
+FROM base AS prod
 
-##################################
+ARG APP_ENV=prod
+ARG DATABASE_URL
+ARG APP_SECRET
 
-FROM base-php AS composer-install
+RUN chown -R www-data:www-data /usr/src/app
+USER www-data
+
+RUN composer install --no-dev --optimize-autoloader --no-scripts
+RUN php bin/console cache:clear --no-warmup --env=prod \
+    && php bin/console cache:warmup --env=prod \
+    && php bin/console asset-map:compile --env=prod
+
+ENV PATH="/usr/src/app/vendor/bin:/usr/src/app/bin:${PATH}"
+
+CMD ["php-fpm"]
