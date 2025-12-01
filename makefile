@@ -1,5 +1,7 @@
 -include .env
 
+STAGE ?= $(APP_ENV)
+
 help: ## Display available make commands
 	@if command -v awk >/dev/null 2>&1; then \
 		awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} \
@@ -38,30 +40,34 @@ install-symfony-webapp: ## Install Symfony (full webapp)
 ##@ General
 
 start: ## Start project
-	docker compose up -d 
+	docker compose -f docker/compose.$(STAGE).yml up -d
 
 stop: ## Stop project
-	docker compose stop
+	docker compose -f docker/compose.$(STAGE).yml stop
 
 cc:  ## Clear cache
-	docker compose run --rm --no-deps php php bin/console cache:clear
+	docker compose -f docker/compose.$(STAGE).yml run --rm --no-deps php php bin/console cache:clear
+
+cw:  ## Warmup cache
+	docker compose -f docker/compose.$(STAGE).yml run --rm --no-deps php php bin/console cache:warmup --env=$(APP_ENV)
+
 
 php: ## Run bash console in php container
-	docker compose run --rm php bash
+	docker compose -f docker/compose.$(STAGE).yml run --rm php bash
 
 ##@ Composer
 composer-install: ## Install composer dependencies
-	docker compose run --rm --no-deps php composer install
+	docker compose -f docker/compose.$(STAGE).yml run --rm --no-deps php composer install
 
 composer-update: ## Update composer dependencies
-	docker compose run --rm --no-deps php composer update
+	docker compose -f docker/compose.$(STAGE).yml run --rm --no-deps php composer update
 
 ##@ Symfony
 create-database: ## Create database
-	docker compose run --rm --no-deps php php bin/console doctrine:database:create
+	docker compose -f docker/compose.$(STAGE).yml run --rm --no-deps php php bin/console doctrine:database:create
 
 migrations: ## Execute migrations
-	docker compose run --rm --no-deps php php bin/console doctrine:migrations:migrate
+	docker compose -f docker/compose.$(STAGE).yml run --rm --no-deps php php bin/console doctrine:migrations:migrate
 
 fixtures: ## Load fixtures
-	docker compose run --rm --no-deps php php bin/console doctrine:fixtures:load
+	docker compose -f docker/compose.$(STAGE).yml run --rm --no-deps php php bin/console doctrine:fixtures:load
